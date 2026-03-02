@@ -1,15 +1,18 @@
+import os
+from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import Engine
 
-PG_USER = "capstone_admin"
-PG_PASS = "Capstone88*"
-PG_PORT = "5432"
-DB = "postgresql+psycopg2"
-DB_HOST = "digitial-twin-db.crmm8iyoooip.us-east-2.rds.amazonaws.com"
-DB_NAME = "app"
+load_dotenv()
 
-DB_URL = f"{DB}://{PG_USER}:{PG_PASS}@{DB_HOST}:{PG_PORT}/{DB_NAME}"
-engine = create_engine(DB_URL)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Put it in backend/.env")
+
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+)
 
 def create_tables():
     SQLModel.metadata.create_all(engine)
