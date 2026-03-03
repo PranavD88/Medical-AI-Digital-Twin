@@ -62,6 +62,18 @@ type SimulationResult = {
   flag_too_high: boolean;
   flag_too_low: boolean;
   patient_context?: PatientContext;
+  ade_screening?: {
+    medication: string;
+    matched_rule: boolean;
+    risk_level: string;
+    alerts: string[];
+    findings: Array<{
+      category: string;
+      severity: string;
+      matched: string;
+      message: string;
+    }>;
+  };
   therapeutic_window?: {
     lower_mg_l?: number;
     upper_mg_l?: number;
@@ -124,11 +136,16 @@ export default function Simulation() {
   // new-med form
   const [showNewMed, setShowNewMed] = useState(false);
   const [newMedName, setNewMedName] = useState("");
+  const [newMedGenericName, setNewMedGenericName] = useState("");
   const [newMedHalfLife, setNewMedHalfLife] = useState("");
+  const [newMedBioavailability, setNewMedBioavailability] = useState("");
   const [newMedClr, setNewMedClr] = useState("");
+  const [newMedClrUnit, setNewMedClrUnit] = useState("mL/min/kg");
   const [newMedVd, setNewMedVd] = useState("");
+  const [newMedVdUnit, setNewMedVdUnit] = useState("L/kg");
   const [newMedWinLow, setNewMedWinLow] = useState("");
   const [newMedWinHigh, setNewMedWinHigh] = useState("");
+  const [newMedSourceUrl, setNewMedSourceUrl] = useState("");
   const [savingMed, setSavingMed] = useState(false);
   const [newMedErr, setNewMedErr] = useState<string | null>(null);
   const [showEditMed, setShowEditMed] = useState(false);
@@ -222,24 +239,33 @@ export default function Simulation() {
 
       const created = await api.createMedication({
         name: newMedName.trim(),
+        generic_name: newMedGenericName.trim() || undefined,
         half_life_hr: newMedHalfLife ? Number(newMedHalfLife) : undefined,
+        bioavailability_f: newMedBioavailability ? Number(newMedBioavailability) : undefined,
         clearance_raw_value: newMedClr ? Number(newMedClr) : undefined,
-        clearance_raw_unit: newMedClr ? "mL/min/kg" : undefined,
+        clearance_raw_unit: newMedClr ? (newMedClrUnit.trim() || "mL/min/kg") : undefined,
         volume_of_distribution_raw_value: newMedVd ? Number(newMedVd) : undefined,
-        volume_of_distribution_raw_unit: newMedVd ? "L/kg" : undefined,
+        volume_of_distribution_raw_unit: newMedVd ? (newMedVdUnit.trim() || "L/kg") : undefined,
         therapeutic_window_lower_mg_l: newMedWinLow ? Number(newMedWinLow) : undefined,
         therapeutic_window_upper_mg_l: newMedWinHigh ? Number(newMedWinHigh) : undefined,
+        source_url: newMedSourceUrl.trim() || undefined,
       });
-
-      setMedications((prev) => [...prev, created]);
-      setSelectedMedId(created.id);
+      const refreshed = await api.listSimulationMedications();
+      setMedications(refreshed);
+      const matched = refreshed.find((m) => m.id === created.id);
+      setSelectedMedId(matched?.id || created.id);
 
       setNewMedName("");
+      setNewMedGenericName("");
       setNewMedHalfLife("");
+      setNewMedBioavailability("");
       setNewMedClr("");
+      setNewMedClrUnit("mL/min/kg");
       setNewMedVd("");
+      setNewMedVdUnit("L/kg");
       setNewMedWinLow("");
       setNewMedWinHigh("");
+      setNewMedSourceUrl("");
       setShowNewMed(false);
     } catch (e: any) {
       console.error(e);
@@ -711,19 +737,39 @@ export default function Simulation() {
               required
             />
             <FieldText
+              label="Generic name"
+              value={newMedGenericName}
+              onChange={setNewMedGenericName}
+            />
+            <FieldText
               label="Half-life (hr)"
               value={newMedHalfLife}
               onChange={setNewMedHalfLife}
             />
             <FieldText
-              label="Clearance raw value (mL/min/kg)"
+              label="Bioavailability (0-1)"
+              value={newMedBioavailability}
+              onChange={setNewMedBioavailability}
+            />
+            <FieldText
+              label="Clearance raw value"
               value={newMedClr}
               onChange={setNewMedClr}
             />
             <FieldText
-              label="Vd raw value (L/kg)"
+              label="Clearance raw unit"
+              value={newMedClrUnit}
+              onChange={setNewMedClrUnit}
+            />
+            <FieldText
+              label="Vd raw value"
               value={newMedVd}
               onChange={setNewMedVd}
+            />
+            <FieldText
+              label="Vd raw unit"
+              value={newMedVdUnit}
+              onChange={setNewMedVdUnit}
             />
             <FieldText
               label="Therapeutic lower (mg/L)"
@@ -734,6 +780,11 @@ export default function Simulation() {
               label="Therapeutic upper (mg/L)"
               value={newMedWinHigh}
               onChange={setNewMedWinHigh}
+            />
+            <FieldText
+              label="Source URL"
+              value={newMedSourceUrl}
+              onChange={setNewMedSourceUrl}
             />
 
             <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.5rem" }}>
@@ -957,6 +1008,11 @@ export default function Simulation() {
                 {" "}({result.therapeutic_window.source ?? "unknown"})
               </div>
             )}
+            {result.ade_screening && (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.88rem" }}>
+                ADE screening risk: <strong>{result.ade_screening.risk_level.toUpperCase()}</strong>
+              </div>
+            )}
             {result.params_used?.suggested_input_dose_mg_for_mid_window != null && (
               <div style={{ marginTop: "0.25rem", fontSize: "0.88rem" }}>
                 Suggested dose for mid-window: {result.params_used.suggested_input_dose_mg_for_mid_window.toFixed(1)} mg every {result.interval_hr} hr
@@ -1013,6 +1069,24 @@ export default function Simulation() {
                   <li key={i}>{a}</li>
                 ))}
               </ul>
+            )}
+            {result.ade_screening?.findings && result.ade_screening.findings.length > 0 && (
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  fontSize: "0.88rem",
+                  color: "#dc2626",
+                  borderLeft: "3px solid #ef4444",
+                  paddingLeft: "0.6rem",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.2rem" }}>Medication Safety Findings</div>
+                {result.ade_screening.findings.map((f, i) => (
+                  <div key={i}>
+                    [{f.severity.toUpperCase()}] {f.category}: {f.message}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

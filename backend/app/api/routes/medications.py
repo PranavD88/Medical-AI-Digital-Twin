@@ -136,7 +136,17 @@ def list_simulation_ready_medications(session: Session = Depends(get_session)):
         for r in reviews
         if r.status == "approved" and r.lower_mg_l is not None and r.upper_mg_l is not None
     }
-    return [med for med in meds if str(med.id) in approved_ids]
+    filtered: list[Medication] = []
+    for med in meds:
+        mid = str(med.id)
+        if mid in approved_ids:
+            filtered.append(med)
+            continue
+        low = _dec_to_float(med.therapeutic_window_lower_mg_l)
+        high = _dec_to_float(med.therapeutic_window_upper_mg_l)
+        if low is not None and high is not None and high > low >= 0:
+            filtered.append(med)
+    return filtered
 
 
 @router.get("/{name}")

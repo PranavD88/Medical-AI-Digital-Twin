@@ -23,6 +23,7 @@ from ...pharmacokinetics import (
     resolve_therapeutic_window_for_medication,
     simulate_and_store,
 )
+from ...ade_screening import screen_medication_safety
 
 router = APIRouter(
     prefix="/sims",
@@ -79,6 +80,7 @@ class RunSimulationResponse(BaseModel):
     flag_too_low: bool
 
     patient_context: Dict[str, Any]
+    ade_screening: Dict[str, Any]
     therapeutic_window: Dict[str, Any]
     therapeutic_eval: Dict[str, Any]
     params_used: Dict[str, Any]
@@ -175,12 +177,14 @@ def run_simulation(
         "conditions": sorted(list(set(condition_names))),
         "current_medications": sorted(list(set(current_medication_names))),
     }
+    ade_screening = screen_medication_safety(med.name, patient_context)
 
     sim.flag_too_high = therapeutic_eval["pct_above"] > therapeutic_eval["target_above_pct"]
     sim.flag_too_low = therapeutic_eval["pct_below"] > therapeutic_eval["target_below_pct"]
 
     sim_results["therapeutic_eval"] = therapeutic_eval
     sim_results["patient_context"] = patient_context
+    sim_results["ade_screening"] = ade_screening
     sim_results["therapeutic_window"] = {
         "lower_mg_l": lower,
         "upper_mg_l": upper,
@@ -208,6 +212,7 @@ def run_simulation(
         flag_too_high=sim.flag_too_high,
         flag_too_low=sim.flag_too_low,
         patient_context=patient_context,
+        ade_screening=ade_screening,
         therapeutic_window={
             "lower_mg_l": lower,
             "upper_mg_l": upper,

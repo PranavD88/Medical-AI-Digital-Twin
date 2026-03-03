@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "drugs": [
+    {
+      "name": "Lithium Carbonate",
+      "aliases": ["lithium"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Pregnancy exposure can increase fetal risk; use only with specialist review."
+      },
+      "breastfeeding": {
+        "severity": "high",
+        "message": "Lithium passes into breast milk; infant toxicity monitoring is required."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["chronic kidney disease", "renal impairment", "kidney disease"],
+          "severity": "high",
+          "message": "Renal impairment can raise lithium levels and toxicity risk."
+        },
+        {
+          "match_any": ["dehydration", "heart failure"],
+          "severity": "moderate",
+          "message": "Volume shifts can increase lithium concentration variability."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "CKD stage G3+ increases risk for lithium accumulation; dose/monitoring adjustment required."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["lisinopril", "enalapril", "ramipril", "losartan", "valsartan"],
+          "severity": "high",
+          "message": "ACEi/ARB can increase lithium concentrations."
+        },
+        {
+          "with_any": ["ibuprofen", "naproxen", "diclofenac", "indomethacin"],
+          "severity": "high",
+          "message": "NSAIDs can increase lithium concentrations."
+        },
+        {
+          "with_any": ["hydrochlorothiazide", "chlorthalidone", "furosemide"],
+          "severity": "high",
+          "message": "Diuretics can increase lithium concentrations and toxicity risk."
+        }
+      ]
+    },
+    {
+      "name": "Valproic Acid",
+      "aliases": ["valproate", "divalproex sodium"],
+      "pregnancy": {
+        "severity": "contraindicated",
+        "message": "Avoid in pregnancy when possible due to major fetal risk."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Generally compatible with monitoring; assess infant sedation and liver effects."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["liver disease", "hepatic impairment", "hepatitis"],
+          "severity": "contraindicated",
+          "message": "Valproate is contraindicated or high risk in significant hepatic disease."
+        },
+        {
+          "match_any": ["pancreatitis", "urea cycle disorder"],
+          "severity": "contraindicated",
+          "message": "Valproate may precipitate severe adverse effects in these conditions."
+        }
+      ],
+      "interaction_rules": [
+        {
+          "with_any": ["lamotrigine"],
+          "severity": "high",
+          "message": "Valproate increases lamotrigine exposure and severe rash risk."
+        },
+        {
+          "with_any": ["carbamazepine", "phenytoin", "phenobarbital"],
+          "severity": "moderate",
+          "message": "Enzyme-inducing antiepileptics can alter valproate exposure."
+        }
+      ]
+    }
+  ]
+}
