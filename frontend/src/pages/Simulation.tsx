@@ -162,6 +162,9 @@ export default function Simulation() {
   const [updatingMed, setUpdatingMed] = useState(false);
   const [deletingMed, setDeletingMed] = useState(false);
   const [editMedErr, setEditMedErr] = useState<string | null>(null);
+  const [shareEmail, setShareEmail] = useState(localStorage.getItem("patient_email") || "");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   // load medications
   useEffect(() => {
@@ -303,6 +306,36 @@ export default function Simulation() {
       setError(typeof e === "string" ? e : e?.message || "Failed to run simulation");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!result?.id) {
+      setShareMsg("Run a simulation before sharing.");
+      return;
+    }
+    const clinicianEmail = (localStorage.getItem("clinician_email") || "").trim().toLowerCase();
+    if (!clinicianEmail) {
+      setShareMsg("Missing clinician identity. Sign in again.");
+      return;
+    }
+    if (!shareEmail.trim()) {
+      setShareMsg("Enter patient email.");
+      return;
+    }
+
+    try {
+      setShareBusy(true);
+      setShareMsg(null);
+      await api.shareSimulation(result.id, {
+        patient_email: shareEmail.trim().toLowerCase(),
+        clinician_email: clinicianEmail,
+      });
+      setShareMsg("Simulation shared successfully.");
+    } catch (e: any) {
+      setShareMsg(typeof e === "string" ? e : e?.message || "Failed to share simulation.");
+    } finally {
+      setShareBusy(false);
     }
   };
 
@@ -1088,6 +1121,43 @@ export default function Simulation() {
                 ))}
               </div>
             )}
+            <div
+              style={{
+                marginTop: "0.75rem",
+                borderTop: "1px solid #e5e7eb",
+                paddingTop: "0.75rem",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "0.3rem" }}>Send To Patient</div>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  placeholder="patient email"
+                  value={shareEmail}
+                  onChange={(e) => setShareEmail(e.target.value)}
+                  style={{
+                    padding: "0.35rem 0.6rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid #d1d5db",
+                    minWidth: "260px",
+                  }}
+                />
+                <button
+                  onClick={handleShare}
+                  disabled={shareBusy}
+                  style={{
+                    padding: "0.4rem 0.9rem",
+                    borderRadius: "999px",
+                    border: "1px solid #111827",
+                    background: "#111827",
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {shareBusy ? "Sending..." : "Send Simulation"}
+                </button>
+              </div>
+              {shareMsg && <div style={{ marginTop: "0.35rem", fontSize: "0.88rem" }}>{shareMsg}</div>}
+            </div>
           </div>
 
           {/* Curve */}

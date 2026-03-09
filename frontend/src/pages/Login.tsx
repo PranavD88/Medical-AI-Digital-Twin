@@ -12,6 +12,7 @@ export default function Login() {
     setErr("");
     try {
       await api.login(email, password);
+      localStorage.setItem("clinician_email", email.trim().toLowerCase());
       nav("/choose");
     } catch (e: any) {
       setErr(String(e));
@@ -28,6 +29,9 @@ export default function Login() {
         <input type="password" placeholder="Password" value={password} onChange={e=>setPwd(e.target.value)} />
 
         <button onClick={onSignIn}>Sign In</button>
+        <button onClick={() => nav("/patient-login")} style={{ marginTop: "0.5rem" }}>
+          Patient Sign In
+        </button>
         {err && <p style={{color:"red"}}>{err}</p>}
         <p style={{ marginTop: "1rem" }}>Enter your login information to access the portal</p>
       </div>

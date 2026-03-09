@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, status
-from .auth import get_current_user
+from .patient_auth import get_current_patient
 
 def require_roles(*roles):
-    def checker(user=Depends(get_current_user)):
+    def checker(user=Depends(get_current_patient)):
         if user.get("role") not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

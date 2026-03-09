@@ -37,6 +37,32 @@ export type SimulationRunPayload = {
   absorption_rate_hr?: number | null;
 };
 
+export type SharedSimulationSummary = {
+  id: string;
+  medication_name?: string | null;
+  created_at?: string | null;
+  shared_at?: string | null;
+  shared_by?: string | null;
+  dose_mg?: number | null;
+  interval_hr?: number | null;
+  duration_hr?: number | null;
+  cmax_mg_l?: number | null;
+  cmin_mg_l?: number | null;
+  auc_mg_h_l?: number | null;
+  flag_too_high?: boolean | null;
+  flag_too_low?: boolean | null;
+  therapeutic_window?: Record<string, unknown> | null;
+  therapeutic_eval?: Record<string, unknown> | null;
+};
+
+export type SharedSimulationDetail = SharedSimulationSummary & {
+  params_used?: Record<string, unknown>;
+  times_hr: number[];
+  conc_mg_per_L: number[];
+  patient_context?: Record<string, unknown>;
+  ade_screening?: Record<string, unknown>;
+};
+
 export type Medication = {
   id: string;
   name: string;
@@ -96,6 +122,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     }).then(J),
+  patientLogin: (email: string, password: string) =>
+    fetch(`${BASE}/patient-login/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }).then(J) as Promise<{ access_token: string; token_type: string }>,
 
   // Patients
   listPatients: () => fetch(`${BASE}/patients/`).then(J),
@@ -110,6 +142,8 @@ export const api = {
   // identifier = email
   getPatientByEmail: (email: string) =>
     fetch(`${BASE}/patients/${encodeURIComponent(email)}`).then(J),
+  getPatientById: (id: string) =>
+    fetch(`${BASE}/patients/id/${encodeURIComponent(id)}`).then(J),
 
   // identifier = email
   updatePatientBody: (identifier: string, body: PatientUpdateBody) =>
@@ -210,4 +244,21 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then(J),
+  shareSimulation: (
+    simulationId: string,
+    payload: { patient_email: string; clinician_email: string }
+  ) =>
+    fetch(`${BASE}/sims/share/${encodeURIComponent(simulationId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(J) as Promise<{ ok: boolean; simulation_id: string }>,
+  listMySharedSimulations: (token: string) =>
+    fetch(`${BASE}/sims/me/shared`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(J) as Promise<SharedSimulationSummary[]>,
+  getMySharedSimulation: (token: string, simulationId: string) =>
+    fetch(`${BASE}/sims/me/shared/${encodeURIComponent(simulationId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(J) as Promise<SharedSimulationDetail>,
 };

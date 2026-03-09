@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import Session, select
 
 from ...core.db import get_session
+from ...core.patient_auth import get_current_patient
 from ...core.security import decryptData
 from ...models import (
+    Clinician,
     Condition,
     Medication,
     Patient,
@@ -86,6 +90,84 @@ class RunSimulationResponse(BaseModel):
     params_used: Dict[str, Any]
     times_hr: List[float]
     conc_mg_per_L: List[float]
+
+
+class ShareSimulationRequest(BaseModel):
+    patient_email: EmailStr
+    clinician_email: EmailStr
+
+
+class SharedSimulationSummary(BaseModel):
+    id: str
+    medication_name: Optional[str]
+    created_at: Optional[str]
+    shared_at: Optional[str]
+    shared_by: Optional[str]
+    dose_mg: Optional[float]
+    interval_hr: Optional[float]
+    duration_hr: Optional[float]
+    cmax_mg_l: Optional[float]
+    cmin_mg_l: Optional[float]
+    auc_mg_h_l: Optional[float]
+    flag_too_high: Optional[bool]
+    flag_too_low: Optional[bool]
+    therapeutic_window: Optional[Dict[str, Any]]
+    therapeutic_eval: Optional[Dict[str, Any]]
+
+
+class SharedSimulationDetail(SharedSimulationSummary):
+    params_used: Dict[str, Any]
+    times_hr: List[float]
+    conc_mg_per_L: List[float]
+    patient_context: Dict[str, Any]
+    ade_screening: Dict[str, Any]
+
+
+def _parse_uuid(value: str, detail: str) -> UUID:
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=detail)
+
+
+def _find_patient_by_email(session: Session, email: str) -> Optional[Patient]:
+    target = email.strip().lower()
+    patients = session.exec(select(Patient)).all()
+    for patient in patients:
+        try:
+            candidate = _decrypt_or_raw(patient.email)
+        except Exception:
+            candidate = patient.email
+        if isinstance(candidate, str) and candidate.strip().lower() == target:
+            return patient
+    return None
+
+
+def _shared_payload(sim: Simulation, med_name: Optional[str]) -> SharedSimulationDetail:
+    sim_results: Dict[str, Any] = dict(sim.sim_results or {})
+    shared_meta = sim_results.get("shared", {}) or {}
+    return SharedSimulationDetail(
+        id=str(sim.id),
+        medication_name=med_name,
+        created_at=sim.created_at.isoformat() if sim.created_at else None,
+        shared_at=shared_meta.get("sent_at"),
+        shared_by=shared_meta.get("sent_by"),
+        dose_mg=float(sim.dose_mg) if sim.dose_mg is not None else None,
+        interval_hr=float(sim.interval_hr) if sim.interval_hr is not None else None,
+        duration_hr=float(sim.duration_hr) if sim.duration_hr is not None else None,
+        cmax_mg_l=float(sim.cmax_mg_l) if sim.cmax_mg_l is not None else None,
+        cmin_mg_l=float(sim.cmin_mg_l) if sim.cmin_mg_l is not None else None,
+        auc_mg_h_l=float(sim.auc_mg_h_l) if sim.auc_mg_h_l is not None else None,
+        flag_too_high=sim.flag_too_high,
+        flag_too_low=sim.flag_too_low,
+        therapeutic_window=sim_results.get("therapeutic_window") or {},
+        therapeutic_eval=sim_results.get("therapeutic_eval") or {},
+        params_used=sim_results.get("params_used") or {},
+        times_hr=sim_results.get("times_hr", []) or [],
+        conc_mg_per_L=sim_results.get("conc_mg_per_L", []) or [],
+        patient_context=sim_results.get("patient_context") or {},
+        ade_screening=sim_results.get("ade_screening") or {},
+    )
 
 
 @router.post("/run", response_model=RunSimulationResponse)
@@ -223,3 +305,115 @@ def run_simulation(
         times_hr=chart_times,
         conc_mg_per_L=chart_conc,
     )
+
+
+@router.post("/share/{simulation_id}")
+def share_simulation(
+    simulation_id: str,
+    payload: ShareSimulationRequest,
+    session: Session = Depends(get_session),
+):
+    sim_id = _parse_uuid(simulation_id, "Invalid simulation ID")
+    simulation = session.get(Simulation, sim_id)
+    if not simulation:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    clinician = session.exec(
+        select(Clinician).where(Clinician.email == payload.clinician_email)
+    ).first()
+    if not clinician:
+        raise HTTPException(status_code=404, detail="Clinician not found")
+
+    patient = _find_patient_by_email(session, payload.patient_email)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    if str(simulation.patient_id) != str(patient.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Simulation patient does not match target patient email",
+        )
+
+    # Keep only one active shared simulation per patient so the patient inbox
+    # reflects the single simulation the clinician intentionally sent most recently.
+    patient_sims = session.exec(
+        select(Simulation).where(Simulation.patient_id == patient.id)
+    ).all()
+    for other in patient_sims:
+        if str(other.id) == str(simulation.id):
+            continue
+        other_results: Dict[str, Any] = dict(other.sim_results or {})
+        shared_meta = dict(other_results.get("shared") or {})
+        if shared_meta.get("sent"):
+            shared_meta["sent"] = False
+            shared_meta["superseded_at"] = datetime.now(timezone.utc).isoformat()
+            other_results["shared"] = shared_meta
+            other.sim_results = other_results
+            session.add(other)
+
+    sim_results: Dict[str, Any] = dict(simulation.sim_results or {})
+    sim_results["shared"] = {
+        "sent": True,
+        "patient_email": payload.patient_email.strip().lower(),
+        "sent_by": payload.clinician_email.strip().lower(),
+        "sent_at": datetime.now(timezone.utc).isoformat(),
+    }
+    simulation.sim_results = sim_results
+    session.add(simulation)
+    session.commit()
+
+    return {"ok": True, "simulation_id": str(simulation.id)}
+
+
+@router.get("/me/shared", response_model=List[SharedSimulationSummary])
+def list_shared_simulations_for_patient(
+    user: dict = Depends(get_current_patient),
+    session: Session = Depends(get_session),
+):
+    patient_id = _parse_uuid(user["patient_id"], "Invalid patient token")
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    sims = session.exec(
+        select(Simulation).where(Simulation.patient_id == patient.id)
+    ).all()
+
+    results: List[SharedSimulationSummary] = []
+    for sim in sims:
+        sim_results: Dict[str, Any] = sim.sim_results or {}
+        shared_meta = sim_results.get("shared") or {}
+        if not shared_meta.get("sent"):
+            continue
+        med = session.get(Medication, sim.medication_id)
+        full = _shared_payload(sim, med.name if med else None)
+        results.append(SharedSimulationSummary(**full.model_dump()))
+
+    results.sort(key=lambda row: row.shared_at or "", reverse=True)
+    return results
+
+
+@router.get("/me/shared/{simulation_id}", response_model=SharedSimulationDetail)
+def get_shared_simulation_for_patient(
+    simulation_id: str,
+    user: dict = Depends(get_current_patient),
+    session: Session = Depends(get_session),
+):
+    patient_id = _parse_uuid(user["patient_id"], "Invalid patient token")
+    sim_id = _parse_uuid(simulation_id, "Invalid simulation ID")
+
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    sim = session.get(Simulation, sim_id)
+    if not sim or str(sim.patient_id) != str(patient.id):
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    sim_results: Dict[str, Any] = sim.sim_results or {}
+    shared_meta = sim_results.get("shared") or {}
+    if not shared_meta.get("sent"):
+        raise HTTPException(status_code=403, detail="Simulation is not shared")
+
+    med = session.get(Medication, sim.medication_id)
+    return _shared_payload(sim, med.name if med else None)

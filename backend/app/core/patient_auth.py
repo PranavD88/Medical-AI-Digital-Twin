@@ -1,18 +1,21 @@
+import os
 from datetime import datetime, timedelta, timezone
+from typing import Any
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 
-SECRET_KEY = "CHANGE_ME"  # move to .env later
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE_ME")
 ALGORITHM = "HS256"
 EXPIRE_MINUTES = 60
 
 patient_oauth2 = OAuth2PasswordBearer(tokenUrl="/patient-login/")
 
-def create_patient_token(patient_id: int) -> str:
+def create_patient_token(patient_id: Any) -> str:
     payload = {
         "role": "patient",
-        "patient_id": patient_id,
+        "patient_id": str(patient_id),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=EXPIRE_MINUTES),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)

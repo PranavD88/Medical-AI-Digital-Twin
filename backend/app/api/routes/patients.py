@@ -1,11 +1,12 @@
+from uuid import UUID
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 from sqlmodel import Session, select
 
 from ...core.db import get_session
 from ...core.patient_auth import get_current_patient
-from ...models import Patient
 from ...models import (
     Condition,
     Patient,
@@ -14,7 +15,7 @@ from ...models import (
     PatientCurrentMedication,
     PatientVitalSigns,
 )
-from app.core.security import encryptData, decryptData
+from ...core.security import encryptData, decryptData
 
 
 router = APIRouter(prefix="/patients", tags=["patients"])
@@ -53,6 +54,13 @@ def _find_patient_by_email(session: Session, email: str) -> Optional[Patient]:
         except Exception:
             continue
     return None
+
+
+def _parse_patient_id(raw_id: str) -> UUID:
+    try:
+        return UUID(str(raw_id))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid patient token")
 
 
 def _get_factors(session: Session, patient_id) -> Optional[PatientClinicalFactors]:
@@ -116,6 +124,30 @@ def decrypt_patient(session: Session, p: Patient):
         "conditions": conditions,
         "current_medications": current_meds,
     }
+
+
+def _apply_patient_scalar_updates(patient: Patient, payload: dict) -> None:
+    if "name" in payload:
+        patient.name = encryptData(str(payload.pop("name")))
+    if "number" in payload:
+        patient.number = encryptData(str(payload.pop("number")))
+    if "phone" in payload:
+        patient.phone = encryptData(str(payload.pop("phone")))
+    if "full_name" in payload:
+        patient.full_name = encryptData(str(payload.pop("full_name")))
+    if "serum_creatinine_mg_dl" in payload:
+        patient.serum_creatinine_mg_dl = payload.pop("serum_creatinine_mg_dl")
+    if "creatinine_clearance_ml_min" in payload:
+        patient.creatinine_clearance_ml_min = payload.pop("creatinine_clearance_ml_min")
+    if "ckd_stage" in payload:
+        patient.ckd_stage = encryptData(str(payload.pop("ckd_stage")))
+
+    for rel_key in {"conditions", "current_medications"}:
+        payload.pop(rel_key, None)
+
+    for key, value in payload.items():
+        if hasattr(patient, key):
+            setattr(patient, key, value)
 
 
 class PatientCreate(BaseModel):
@@ -287,6 +319,47 @@ def create_patient_basic(body: PatientCreate, session: Session = Depends(get_ses
     return decrypt_patient(session, p)
 
 
+@router.get("/me")
+def get_my_profile(
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_patient),
+):
+    patient = session.get(Patient, _parse_patient_id(user["patient_id"]))
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return decrypt_patient(session, patient)
+
+
+@router.post("/me")
+def update_my_profile(
+    body: PatientUpdate,
+    session: Session = Depends(get_session),
+    user: dict = Depends(get_current_patient),
+):
+    patient = session.get(Patient, _parse_patient_id(user["patient_id"]))
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    payload = body.model_dump(exclude_none=True)
+    _apply_patient_scalar_updates(patient, payload)
+    session.add(patient)
+    _upsert_factors_from_body(session, patient.id, body.model_dump(exclude_none=True))
+    _upsert_vitals_from_body(session, patient.id, body.model_dump(exclude_none=True))
+    _sync_conditions(session, patient.id, body.conditions)
+    _sync_current_medications(session, patient.id, body.current_medications)
+    session.commit()
+    session.refresh(patient)
+    return decrypt_patient(session, patient)
+
+
+@router.get("/id/{patient_id}")
+def read_patient_by_id(patient_id: str, session: Session = Depends(get_session)):
+    patient = session.get(Patient, _parse_patient_id(patient_id))
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return decrypt_patient(session, patient)
+
+
 @router.get("/{email}")
 def read_patient_by_email(email: str, session: Session = Depends(get_session)):
     patient = _find_patient_by_email(session, email)
@@ -302,30 +375,7 @@ def update_patient_by_email(email: str, body: PatientUpdate, session: Session = 
         raise HTTPException(status_code=404, detail="Patient not found")
 
     payload = body.model_dump(exclude_none=True)
-    relationship_keys = {"conditions", "current_medications"}
-
-    # Encrypted fields
-    if "name" in payload:
-        patient.name = encryptData(str(payload.pop("name")))
-    if "number" in payload:
-        patient.number = encryptData(str(payload.pop("number")))
-    if "phone" in payload:
-        patient.phone = encryptData(str(payload.pop("phone")))
-    if "full_name" in payload:
-        patient.full_name = encryptData(str(payload.pop("full_name")))
-    if "serum_creatinine_mg_dl" in payload:
-        patient.serum_creatinine_mg_dl = payload.pop("serum_creatinine_mg_dl")
-    if "creatinine_clearance_ml_min" in payload:
-        patient.creatinine_clearance_ml_min = payload.pop("creatinine_clearance_ml_min")
-    if "ckd_stage" in payload:
-        patient.ckd_stage = encryptData(str(payload.pop("ckd_stage")))
-    for rel_key in relationship_keys:
-        payload.pop(rel_key, None)
-
-    for k, v in payload.items():
-        if hasattr(patient, k):
-            setattr(patient, k, v)
-
+    _apply_patient_scalar_updates(patient, payload)
     session.add(patient)
     _upsert_factors_from_body(session, patient.id, body.model_dump(exclude_none=True))
     _upsert_vitals_from_body(session, patient.id, body.model_dump(exclude_none=True))
@@ -333,34 +383,4 @@ def update_patient_by_email(email: str, body: PatientUpdate, session: Session = 
     _sync_current_medications(session, patient.id, body.current_medications)
     session.commit()
     session.refresh(patient)
-    return patient
-
-@router.get("/me")
-def get_my_profile(
-    session: Session = Depends(get_session),
-    user: dict = Depends(get_current_patient),
-):
-    patient = session.get(Patient, user["patient_id"])
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return patient
-
-
-@router.post("/me")
-def update_my_profile(
-    body: PatientUpdate,
-    session: Session = Depends(get_session),
-    user: dict = Depends(get_current_patient),
-):
-    patient = session.get(Patient, user["patient_id"])
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-
-    for k, v in body.model_dump(exclude_none=True).items():
-        setattr(patient, k, v)
-
-    session.add(patient)
-    session.commit()
-    session.refresh(patient)
-    return patient
     return decrypt_patient(session, patient)

@@ -177,4 +177,3 @@ export default function EditPatient() {
     </div>
   );
 }
-<
