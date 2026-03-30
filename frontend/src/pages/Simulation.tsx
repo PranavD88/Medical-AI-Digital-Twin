@@ -120,7 +120,9 @@ export default function Simulation() {
   const [loading, setLoading] = useState(false);
   const [fetchingPk, setFetchingPk] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SimulationResult | null>(null);
+  //const [result, setResult] = useState<SimulationResult | null>(null);
+  const [results, setResults] = useState<SimulationResult[]>([]);
+  const result = results.length > 0 ? results[results.length - 1] : null;
   const [pkFetchResult, setPkFetchResult] = useState<PkFetchResponse | null>(null);
   const [fetchMedName, setFetchMedName] = useState("");
   const [fetchUpsert, setFetchUpsert] = useState(true);
@@ -301,7 +303,7 @@ export default function Simulation() {
       };
 
       const data = (await api.runSimulation(payload)) as SimulationResult;
-      setResult(data);
+      setResults((prev) => [...prev, data]);
     } catch (e: any) {
       setError(typeof e === "string" ? e : e?.message || "Failed to run simulation");
     } finally {
@@ -309,8 +311,24 @@ export default function Simulation() {
     }
   };
 
+  const handleAccept = async (sim: SimulationResult) => {
+    try {
+      await fetch(
+        `/api/sims/accept?patient_id=${sim.patient_id}&medication_id=${sim.medication_id}&simulation_id=${sim.id}`,
+       {
+          method: "POST",
+        }
+      );
+
+      alert("Simulation accepted!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to accept simulation");
+    }
+  };
+
   const handleShare = async () => {
-    if (!result?.id) {
+    if (results.length === 0) {
       setShareMsg("Run a simulation before sharing.");
       return;
     }
@@ -327,7 +345,8 @@ export default function Simulation() {
     try {
       setShareBusy(true);
       setShareMsg(null);
-      await api.shareSimulation(result.id, {
+      const latest = results[results.length - 1];
+      await api.shareSimulation(latest.id, {
         patient_email: shareEmail.trim().toLowerCase(),
         clinician_email: clinicianEmail,
       });
@@ -1128,6 +1147,20 @@ export default function Simulation() {
                 paddingTop: "0.75rem",
               }}
             >
+              <button
+                style={{
+                  marginBottom: "0.75rem",
+                  padding: "0.4rem 0.9rem",
+                  borderRadius: "999px",
+                  border: "1px solid green",
+                  background: "green",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+                onClick={() => handleAccept(result)}
+              >
+                Accept This Simulation
+              </button>
               <div style={{ fontWeight: 600, marginBottom: "0.3rem" }}>Send To Patient</div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                 <input
@@ -1203,6 +1236,30 @@ export default function Simulation() {
             </ResponsiveContainer>
           </div>
         </>
+      )}
+      {results.length > 1 && (
+        <div style={{ marginTop: "2rem" }}>
+          <h3>Previous Simulation Runs</h3>
+
+          {results.map((sim) => (
+            <div
+              key={sim.id}
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "8px",
+              }}
+            >
+              <div><strong>Dose:</strong> {sim.dose_mg} mg</div>
+              <div><strong>Interval:</strong> {sim.interval_hr} hr</div>
+
+              <button onClick={() => handleAccept(sim)}>
+                Accept This One
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

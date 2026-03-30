@@ -164,6 +164,19 @@ class Simulation(SQLModel, table=True):
 
     patient: Patient = Relationship(back_populates="simulations")
 
+class AcceptedSimulation(SQLModel, table=True):
+    id: uuid.UUID | None = Field(default_factory=uuid.uuid4, primary_key=True)
+
+    patient_id: uuid.UUID = Field(foreign_key="patient.id", index=True)
+    medication_id: uuid.UUID = Field(foreign_key="medication.id", index=True)
+
+    simulation_id: uuid.UUID = Field(foreign_key="simulation.id", unique=True)
+
+    accepted_at: datetime = Field(default_factory=datetime.now)
+
+    __table_args__ = (
+        {"sqlite_autoincrement": True},
+    )
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
