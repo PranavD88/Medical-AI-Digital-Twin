@@ -25,6 +25,8 @@ class Clinician(SQLModel, table=True):
     name: str
     email: EmailStr = Field(unique=True, index=True, max_length=255)
     password: str = Field(min_length=8, max_length=40)
+    last_login: Optional[datetime] = Field(default=None)
+    last_simulation_at: Optional[datetime] = Field(default=None)
 
 
 class PatientMedicationLink(SQLModel, table=True):
@@ -41,6 +43,8 @@ class Patient(SQLModel, table=True):
     email: EmailStr = Field(unique=True, index=True, max_length=255)
     age: int | None = None
     sex: str | None = None
+    last_login: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    last_simulation_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
 
     full_name: str | None = None
     phone: str | None = None
@@ -183,8 +187,8 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
     hashedPassword: str
-    last_login = Column(DateTime, nullable=True)
-    last_simulation_at = Column(DateTime, nullable=True)
+    last_login: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    last_simulation_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
 
 class UserResponse(BaseModel):
     id: int
