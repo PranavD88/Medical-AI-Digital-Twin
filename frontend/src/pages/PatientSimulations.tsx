@@ -204,5 +204,6 @@ export default function PatientSimulations() {
         </>
       )}
     </div>
+    </>
   );
 }
