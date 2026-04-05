@@ -517,7 +517,15 @@ export default function Simulation() {
   return (
   <>
     <Navbar />
-      <div style={{ maxWidth: "960px", margin: "0 auto" }}>
+      <div
+        style={{
+          maxWidth: "960px",
+          width: "100%",
+          margin: "0 auto",
+          padding: "0 0.75rem 1.25rem",
+          boxSizing: "border-box",
+        }}
+      >
         <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
           Dosing Simulation
         </h2>
@@ -542,8 +550,16 @@ export default function Simulation() {
             border: "1px solid #e5e7eb",
           }}
         >
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <label style={{ fontSize: "0.9rem", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <label
+              style={{
+                fontSize: "0.9rem",
+                display: "flex",
+                flexDirection: "column",
+                flex: "1 1 220px",
+                minWidth: 0,
+              }}
+            >
               <span style={{ marginBottom: "0.25rem" }}>Medication</span>
               <select
                 value={selectedMedId}
@@ -552,7 +568,7 @@ export default function Simulation() {
                   padding: "0.3rem 0.6rem",
                   borderRadius: "0.5rem",
                   border: "1px solid #d1d5db",
-                  minWidth: "16rem",
+                  width: "100%",
                 }}
               >
                 {medications.map((m) => (
@@ -562,7 +578,15 @@ export default function Simulation() {
                 ))}
               </select>
             </label>
-            <label style={{ fontSize: "0.9rem", display: "flex", flexDirection: "column" }}>
+            <label
+              style={{
+                fontSize: "0.9rem",
+                display: "flex",
+                flexDirection: "column",
+                flex: "1 1 220px",
+                minWidth: 0,
+              }}
+            >
               <span style={{ marginBottom: "0.25rem" }}>Fetch PK For</span>
               <input
                 type="text"
@@ -573,7 +597,7 @@ export default function Simulation() {
                   padding: "0.3rem 0.6rem",
                   borderRadius: "0.5rem",
                   border: "1px solid #d1d5db",
-                  minWidth: "16rem",
+                  width: "100%",
                 }}
               />
             </label>
@@ -1174,7 +1198,9 @@ export default function Simulation() {
                       padding: "0.35rem 0.6rem",
                       borderRadius: "0.5rem",
                       border: "1px solid #d1d5db",
-                      minWidth: "260px",
+                      flex: "1 1 220px",
+                      minWidth: 0,
+                      maxWidth: "100%",
                     }}
                   />
                   <button
@@ -1278,7 +1304,15 @@ type FieldNumberProps = {
 
 function FieldNumber({ label, value, step, onChange }: FieldNumberProps) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", fontSize: "0.9rem" }}>
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        fontSize: "0.9rem",
+        flex: "1 1 140px",
+        minWidth: 0,
+      }}
+    >
       <span style={{ marginBottom: "0.25rem" }}>{label}</span>
       <input
         type="number"
@@ -1289,7 +1323,7 @@ function FieldNumber({ label, value, step, onChange }: FieldNumberProps) {
           padding: "0.3rem 0.6rem",
           borderRadius: "0.5rem",
           border: "1px solid #d1d5db",
-          minWidth: "8rem",
+          width: "100%",
         }}
       />
     </label>
