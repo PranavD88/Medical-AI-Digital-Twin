@@ -1,9 +1,9 @@
 {
-  "version": 1,
+  "version": 2,
   "drugs": [
     {
       "name": "Lithium Carbonate",
-      "aliases": ["lithium"],
+      "aliases": ["lithium", "lithobid", "eskalith"],
       "pregnancy": {
         "severity": "high",
         "message": "Pregnancy exposure can increase fetal risk; use only with specialist review."
@@ -19,21 +19,26 @@
           "message": "Renal impairment can raise lithium levels and toxicity risk."
         },
         {
-          "match_any": ["dehydration", "heart failure"],
+          "match_any": ["dehydration", "heart failure", "hyponatremia"],
           "severity": "moderate",
-          "message": "Volume shifts can increase lithium concentration variability."
+          "message": "Volume and sodium shifts can increase lithium concentration variability."
         }
       ],
       "ckd_stage_at_least": {
         "stage": "G3",
         "severity": "high",
-        "message": "CKD stage G3+ increases risk for lithium accumulation; dose/monitoring adjustment required."
+        "message": "CKD stage G3+ increases risk for lithium accumulation; dose and monitoring adjustment required."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Reduced CrCl increases lithium exposure and toxicity risk."
       },
       "interaction_rules": [
         {
           "with_any": ["lisinopril", "enalapril", "ramipril", "losartan", "valsartan"],
           "severity": "high",
-          "message": "ACEi/ARB can increase lithium concentrations."
+          "message": "ACEi and ARB therapy can increase lithium concentrations."
         },
         {
           "with_any": ["ibuprofen", "naproxen", "diclofenac", "indomethacin"],
@@ -49,7 +54,7 @@
     },
     {
       "name": "Valproic Acid",
-      "aliases": ["valproate", "divalproex sodium"],
+      "aliases": ["valproate", "divalproex sodium", "valproic acid"],
       "pregnancy": {
         "severity": "contraindicated",
         "message": "Avoid in pregnancy when possible due to major fetal risk."
@@ -70,6 +75,11 @@
           "message": "Valproate may precipitate severe adverse effects in these conditions."
         }
       ],
+      "albumin_below_g_dl": {
+        "threshold": 3.5,
+        "severity": "moderate",
+        "message": "Low albumin can increase free valproate fraction and adverse effects."
+      },
       "interaction_rules": [
         {
           "with_any": ["lamotrigine"],
@@ -80,6 +90,416 @@
           "with_any": ["carbamazepine", "phenytoin", "phenobarbital"],
           "severity": "moderate",
           "message": "Enzyme-inducing antiepileptics can alter valproate exposure."
+        },
+        {
+          "with_any": ["warfarin", "aspirin"],
+          "severity": "moderate",
+          "message": "Combined use can increase bleeding risk; monitor closely."
+        }
+      ]
+    },
+    {
+      "name": "Phenytoin",
+      "aliases": ["phenytoin sodium", "dilantin"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Use in pregnancy requires risk-benefit review and close monitoring."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Generally compatible with monitoring for infant sedation."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["liver disease", "hepatic impairment", "hepatitis"],
+          "severity": "high",
+          "message": "Hepatic impairment can increase phenytoin exposure."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G4",
+        "severity": "moderate",
+        "message": "Advanced CKD may increase free phenytoin fraction; monitor free levels when possible."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 30,
+        "severity": "moderate",
+        "message": "Reduced renal function can alter free phenytoin concentrations."
+      },
+      "albumin_below_g_dl": {
+        "threshold": 3.5,
+        "severity": "high",
+        "message": "Low albumin increases free phenytoin fraction and toxicity risk."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["valproic acid", "valproate"],
+          "severity": "high",
+          "message": "Valproate can displace protein binding and increase free phenytoin."
+        },
+        {
+          "with_any": ["carbamazepine", "phenobarbital"],
+          "severity": "moderate",
+          "message": "Combined antiepileptics can produce complex PK interactions."
+        },
+        {
+          "with_any": ["warfarin", "amiodarone", "omeprazole"],
+          "severity": "moderate",
+          "message": "Interaction may alter phenytoin exposure or anticoagulation response."
+        }
+      ]
+    },
+    {
+      "name": "Carbamazepine",
+      "aliases": ["tegretol", "carbatrol"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Use in pregnancy requires risk-benefit assessment and specialist follow-up."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "May be compatible with breastfeeding with infant monitoring."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["liver disease", "hepatic impairment", "hepatitis"],
+          "severity": "high",
+          "message": "Hepatic impairment increases risk of adverse effects."
+        },
+        {
+          "match_any": ["heart block", "arrhythmia", "conduction disease"],
+          "severity": "high",
+          "message": "May worsen cardiac conduction abnormalities."
+        }
+      ],
+      "interaction_rules": [
+        {
+          "with_any": ["clarithromycin", "erythromycin", "diltiazem", "verapamil"],
+          "severity": "high",
+          "message": "These agents can increase carbamazepine concentrations."
+        },
+        {
+          "with_any": ["phenytoin", "phenobarbital", "valproic acid"],
+          "severity": "moderate",
+          "message": "Co-administered antiepileptics may alter exposure."
+        },
+        {
+          "with_any": ["warfarin"],
+          "severity": "moderate",
+          "message": "Enzyme induction may reduce anticoagulant effect."
+        }
+      ]
+    },
+    {
+      "name": "Theophylline",
+      "aliases": ["aminophylline"],
+      "pregnancy": {
+        "severity": "moderate",
+        "message": "Use cautiously and monitor concentrations in pregnancy."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Monitor infant for irritability and feeding changes."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["heart failure", "liver disease", "hepatic impairment", "fever"],
+          "severity": "high",
+          "message": "These conditions can reduce theophylline clearance."
+        }
+      ],
+      "interaction_rules": [
+        {
+          "with_any": ["ciprofloxacin", "clarithromycin", "erythromycin"],
+          "severity": "high",
+          "message": "May raise theophylline levels and toxicity risk."
+        },
+        {
+          "with_any": ["phenytoin", "carbamazepine", "phenobarbital"],
+          "severity": "moderate",
+          "message": "Enzyme induction may lower theophylline concentrations."
+        }
+      ]
+    },
+    {
+      "name": "Digoxin",
+      "aliases": ["lanoxin", "digoxin"],
+      "pregnancy": {
+        "severity": "moderate",
+        "message": "Use with close maternal monitoring when clinically indicated."
+      },
+      "breastfeeding": {
+        "severity": "low",
+        "message": "Generally compatible with breastfeeding."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["heart block", "bradycardia", "arrhythmia"],
+          "severity": "high",
+          "message": "Underlying conduction disease can increase digoxin adverse effects."
+        },
+        {
+          "match_any": ["hypokalemia", "dehydration"],
+          "severity": "high",
+          "message": "Electrolyte disturbances increase digoxin toxicity risk."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "Renal impairment increases digoxin exposure; consider dose adjustment."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Low CrCl is associated with higher digoxin concentrations."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["amiodarone", "verapamil", "diltiazem", "carvedilol"],
+          "severity": "high",
+          "message": "Can increase digoxin exposure or conduction-related adverse effects."
+        },
+        {
+          "with_any": ["clarithromycin", "erythromycin"],
+          "severity": "high",
+          "message": "Macrolides may increase digoxin concentrations."
+        },
+        {
+          "with_any": ["furosemide", "hydrochlorothiazide", "chlorthalidone"],
+          "severity": "moderate",
+          "message": "Diuretics can trigger electrolyte changes that increase toxicity risk."
+        }
+      ]
+    },
+    {
+      "name": "Zofran",
+      "aliases": ["ondansetron", "zofran"],
+      "pregnancy": {
+        "severity": "moderate",
+        "message": "Use in pregnancy should be individualized; monitor maternal risk factors."
+      },
+      "breastfeeding": {
+        "severity": "low",
+        "message": "Generally low risk in breastfeeding with routine monitoring."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["arrhythmia", "heart block", "heart failure", "hypokalemia"],
+          "severity": "moderate",
+          "message": "Baseline cardiac or electrolyte risk can increase QT-related adverse event risk."
+        }
+      ],
+      "interaction_rules": [
+        {
+          "with_any": ["amiodarone", "clarithromycin", "erythromycin"],
+          "severity": "high",
+          "message": "Combined QT-prolonging therapy can increase arrhythmia risk."
+        }
+      ]
+    },
+    {
+      "name": "Vancomycin",
+      "aliases": ["vancomycin hydrochloride"],
+      "pregnancy": {
+        "severity": "moderate",
+        "message": "Use if clinically necessary with renal monitoring."
+      },
+      "breastfeeding": {
+        "severity": "low",
+        "message": "Low oral absorption in infant; monitor for GI effects."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["chronic kidney disease", "renal impairment", "kidney disease"],
+          "severity": "high",
+          "message": "Renal dysfunction increases vancomycin exposure and nephrotoxicity risk."
+        },
+        {
+          "match_any": ["hearing loss", "ototoxicity"],
+          "severity": "moderate",
+          "message": "Baseline hearing concerns warrant closer toxicity monitoring."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "CKD stage G3+ requires careful dosing and exposure monitoring."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Low CrCl raises accumulation and AKI risk."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["gentamicin", "tobramycin", "amikacin"],
+          "severity": "high",
+          "message": "Combined nephrotoxic and ototoxic burden is increased."
+        },
+        {
+          "with_any": ["furosemide", "ibuprofen", "naproxen", "diclofenac"],
+          "severity": "moderate",
+          "message": "Concurrent nephrotoxic agents can increase renal injury risk."
+        }
+      ]
+    },
+    {
+      "name": "Gentamicin",
+      "aliases": ["gentamicin sulfate"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Aminoglycosides in pregnancy require specialist oversight."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Monitor infant GI tolerance and fungal overgrowth signs."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["chronic kidney disease", "renal impairment", "kidney disease", "dehydration"],
+          "severity": "high",
+          "message": "Renal stress increases aminoglycoside toxicity risk."
+        },
+        {
+          "match_any": ["hearing loss", "ototoxicity", "myasthenia gravis"],
+          "severity": "high",
+          "message": "Neuromuscular and auditory toxicity risk is increased."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "CKD stage G3+ requires close exposure monitoring."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Low CrCl increases gentamicin accumulation risk."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["vancomycin", "furosemide", "ibuprofen", "naproxen"],
+          "severity": "high",
+          "message": "Concurrent nephrotoxic or ototoxic therapy increases adverse event risk."
+        }
+      ]
+    },
+    {
+      "name": "Tobramycin",
+      "aliases": ["tobramycin sulfate"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Aminoglycosides in pregnancy require specialist oversight."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Monitor infant GI tolerance and fungal overgrowth signs."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["chronic kidney disease", "renal impairment", "kidney disease", "dehydration"],
+          "severity": "high",
+          "message": "Renal stress increases aminoglycoside toxicity risk."
+        },
+        {
+          "match_any": ["hearing loss", "ototoxicity", "myasthenia gravis"],
+          "severity": "high",
+          "message": "Neuromuscular and auditory toxicity risk is increased."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "CKD stage G3+ requires close exposure monitoring."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Low CrCl increases tobramycin accumulation risk."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["vancomycin", "furosemide", "ibuprofen", "naproxen"],
+          "severity": "high",
+          "message": "Concurrent nephrotoxic or ototoxic therapy increases adverse event risk."
+        }
+      ]
+    },
+    {
+      "name": "Amikacin",
+      "aliases": ["amikacin sulfate"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Aminoglycosides in pregnancy require specialist oversight."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Monitor infant GI tolerance and fungal overgrowth signs."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["chronic kidney disease", "renal impairment", "kidney disease", "dehydration"],
+          "severity": "high",
+          "message": "Renal stress increases aminoglycoside toxicity risk."
+        },
+        {
+          "match_any": ["hearing loss", "ototoxicity", "myasthenia gravis"],
+          "severity": "high",
+          "message": "Neuromuscular and auditory toxicity risk is increased."
+        }
+      ],
+      "ckd_stage_at_least": {
+        "stage": "G3",
+        "severity": "high",
+        "message": "CKD stage G3+ requires close exposure monitoring."
+      },
+      "creatinine_clearance_below_ml_min": {
+        "threshold": 60,
+        "severity": "high",
+        "message": "Low CrCl increases amikacin accumulation risk."
+      },
+      "interaction_rules": [
+        {
+          "with_any": ["vancomycin", "furosemide", "ibuprofen", "naproxen"],
+          "severity": "high",
+          "message": "Concurrent nephrotoxic or ototoxic therapy increases adverse event risk."
+        }
+      ]
+    },
+    {
+      "name": "Phenobarbital",
+      "aliases": ["phenobarbitone", "luminal"],
+      "pregnancy": {
+        "severity": "high",
+        "message": "Use in pregnancy requires specialist oversight and maternal-fetal monitoring."
+      },
+      "breastfeeding": {
+        "severity": "moderate",
+        "message": "Monitor infant for sedation and poor feeding."
+      },
+      "condition_rules": [
+        {
+          "match_any": ["liver disease", "hepatic impairment", "hepatitis"],
+          "severity": "high",
+          "message": "Hepatic impairment can reduce clearance and increase sedation risk."
+        },
+        {
+          "match_any": ["porphyria", "respiratory disease", "copd"],
+          "severity": "high",
+          "message": "May worsen respiratory depression or precipitate porphyria symptoms."
+        }
+      ],
+      "interaction_rules": [
+        {
+          "with_any": ["valproic acid", "carbamazepine", "phenytoin"],
+          "severity": "moderate",
+          "message": "Combined antiepileptics can alter exposure and CNS adverse effects."
+        },
+        {
+          "with_any": ["warfarin"],
+          "severity": "moderate",
+          "message": "Enzyme induction may reduce anticoagulant effect."
         }
       ]
     }

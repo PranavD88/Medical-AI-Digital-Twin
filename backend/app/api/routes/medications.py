@@ -98,6 +98,65 @@ def _to_review_response(row: MedicationTherapeuticWindowReview) -> WindowReviewR
     )
 
 
+def _validate_window_inputs(
+    lower: Optional[float],
+    upper: Optional[float],
+) -> None:
+    has_lower = lower is not None
+    has_upper = upper is not None
+    if has_lower != has_upper:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide both therapeutic_window_lower_mg_l and therapeutic_window_upper_mg_l",
+        )
+    if not has_lower:
+        return
+    if float(lower) < 0 or float(upper) <= float(lower):
+        raise HTTPException(status_code=400, detail="Invalid therapeutic window values")
+
+
+def _window_from_medication(med: Medication) -> tuple[Optional[float], Optional[float]]:
+    return (
+        _dec_to_float(med.therapeutic_window_lower_mg_l),
+        _dec_to_float(med.therapeutic_window_upper_mg_l),
+    )
+
+
+def _sync_review_from_medication_window(
+    session: Session,
+    med: Medication,
+    source: str,
+    existing: MedicationTherapeuticWindowReview | None = None,
+) -> MedicationTherapeuticWindowReview | None:
+    low, high = _window_from_medication(med)
+    if low is None or high is None:
+        return existing
+    if high <= low or low < 0:
+        return existing
+
+    row = existing or _get_window_review_by_med_id(str(med.id), session)
+    if row is None:
+        row = MedicationTherapeuticWindowReview(medication_id=med.id)
+
+    # If already approved with same values, keep it approved.
+    if row.status == "approved":
+        approved_low = _dec_to_float(row.lower_mg_l)
+        approved_high = _dec_to_float(row.upper_mg_l)
+        if approved_low == low and approved_high == high:
+            return row
+
+    row.lower_mg_l = _float_to_dec(low)
+    row.upper_mg_l = _float_to_dec(high)
+    row.status = "proposed"
+    row.source = source
+    row.confidence_pct = _float_to_dec(100.0)
+    row.updated_at = datetime.now()
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
 def _get_medication_by_name_or_404(name: str, session: Session) -> Medication:
     med = session.exec(select(Medication).where(Medication.name == name)).first()
     if not med:
@@ -156,6 +215,10 @@ def get_medication_by_name(name: str, session: Session = Depends(get_session)):
 
 @router.post("/")
 def create_medication(body: MedicationCreate, session: Session = Depends(get_session)):
+    _validate_window_inputs(
+        body.therapeutic_window_lower_mg_l,
+        body.therapeutic_window_upper_mg_l,
+    )
     data = _normalize_medication_payload(body.model_dump(exclude_none=True))
     med = Medication(**data)
     session.add(med)
@@ -168,12 +231,21 @@ def create_medication(body: MedicationCreate, session: Session = Depends(get_ses
             raise HTTPException(status_code=409, detail="Medication already exists")
         raise
     session.refresh(med)
+    _sync_review_from_medication_window(
+        session=session,
+        med=med,
+        source="medication-form",
+    )
     return med
 
 
 @router.post("/{name}")
 def update_medication(name: str, body: MedicationUpdate, session: Session = Depends(get_session)):
     med = _get_medication_by_name_or_404(name, session)
+    _validate_window_inputs(
+        body.therapeutic_window_lower_mg_l,
+        body.therapeutic_window_upper_mg_l,
+    )
 
     updates = _normalize_medication_payload(body.model_dump(exclude_none=True))
 
@@ -183,6 +255,11 @@ def update_medication(name: str, body: MedicationUpdate, session: Session = Depe
     session.add(med)
     session.commit()
     session.refresh(med)
+    _sync_review_from_medication_window(
+        session=session,
+        med=med,
+        source="medication-form",
+    )
     return med
 
 
@@ -218,6 +295,20 @@ def get_window_review(medication_id: str, session: Session = Depends(get_session
     med = _get_medication_by_id_or_404(medication_id, session)
     row = _get_window_review_by_med_id(str(med.id), session)
     if row is None:
+        row = _sync_review_from_medication_window(
+            session=session,
+            med=med,
+            source="medication-db",
+            existing=None,
+        )
+    elif (row.lower_mg_l is None or row.upper_mg_l is None) and row.status != "approved":
+        row = _sync_review_from_medication_window(
+            session=session,
+            med=med,
+            source="medication-db",
+            existing=row,
+        )
+    if row is None:
         row = MedicationTherapeuticWindowReview(
             medication_id=med.id,
             status="manual_required",
@@ -235,6 +326,13 @@ def get_window_review(medication_id: str, session: Session = Depends(get_session
 def approve_window_review(medication_id: str, session: Session = Depends(get_session)):
     med = _get_medication_by_id_or_404(medication_id, session)
     row = _get_window_review_by_med_id(str(med.id), session)
+    if row is None:
+        row = _sync_review_from_medication_window(
+            session=session,
+            med=med,
+            source="medication-db",
+            existing=None,
+        )
     if row is None:
         raise HTTPException(status_code=400, detail="No proposal exists to approve")
     if row.lower_mg_l is None or row.upper_mg_l is None:
@@ -278,7 +376,7 @@ def reject_window_review(
         row.confidence_pct = _float_to_dec(100.0)
         row.status = "proposed"
     else:
-        row.status = "manual_required"
+        row.status = "rejected"
         row.lower_mg_l = None
         row.upper_mg_l = None
         row.source = "rejected-no-manual"
@@ -296,7 +394,7 @@ def list_window_review_queue(session: Session = Depends(get_session)):
     rows = session.exec(
         select(MedicationTherapeuticWindowReview).where(
             MedicationTherapeuticWindowReview.status.in_(
-                ["manual_required", "rejected"]
+                ["manual_required", "rejected", "proposed"]
             )
         )
     ).all()

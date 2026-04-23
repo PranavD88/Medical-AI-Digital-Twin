@@ -24,6 +24,15 @@ def _contains_any(haystack: str, needles: list[str]) -> bool:
     return any(_norm(n) in h for n in needles if _norm(n))
 
 
+def _to_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
 def _parse_ckd_stage(stage: str | None) -> int | None:
     s = _norm(stage)
     if not s.startswith("g") or len(s) < 2:
@@ -47,9 +56,18 @@ def _load_rules() -> dict[str, Any]:
 def _find_drug_rule(med_name: str) -> dict[str, Any] | None:
     rules = _load_rules()
     name = _norm(med_name)
-    for entry in rules.get("drugs", []):
+    entries = rules.get("drugs", [])
+
+    # Prefer exact alias/name matches first.
+    for entry in entries:
         aliases = [_norm(entry.get("name"))] + [_norm(a) for a in entry.get("aliases", [])]
         if any(a and a == name for a in aliases):
+            return entry
+
+    # Fallback to loose containment so minor naming variants still match.
+    for entry in entries:
+        aliases = [_norm(entry.get("name"))] + [_norm(a) for a in entry.get("aliases", [])]
+        if any(a and (a in name or name in a) for a in aliases):
             return entry
     return None
 
@@ -117,6 +135,19 @@ def screen_medication_safety(med_name: str, patient_context: dict[str, Any]) -> 
                     matched=f"condition={c}",
                 )
 
+    liver_status = str(patient_context.get("liver_disease_status") or "").strip()
+    if liver_status:
+        for c_rule in rule.get("condition_rules", []):
+            keys = [str(k) for k in c_rule.get("match_any", [])]
+            if _contains_any(liver_status, keys):
+                base_message = str(c_rule.get("message", "Condition-based caution."))
+                add_finding(
+                    category="condition",
+                    severity=str(c_rule.get("severity", "moderate")),
+                    message=f"{med_name} caution with liver status '{liver_status}': {base_message}",
+                    matched=f"liver_disease_status={liver_status}",
+                )
+
     ckd_rule = rule.get("ckd_stage_at_least")
     if isinstance(ckd_rule, dict):
         patient_ckd = _parse_ckd_stage(str(patient_context.get("ckd_stage")))
@@ -128,6 +159,32 @@ def screen_medication_safety(med_name: str, patient_context: dict[str, Any]) -> 
                 severity=str(ckd_rule.get("severity", "high")),
                 message=f"{med_name} caution with CKD stage {patient_context.get('ckd_stage')}: {base_message}",
                 matched=f"ckd_stage={patient_context.get('ckd_stage')}",
+            )
+
+    crcl_rule = rule.get("creatinine_clearance_below_ml_min")
+    if isinstance(crcl_rule, dict):
+        patient_crcl = _to_float(patient_context.get("creatinine_clearance_ml_min"))
+        threshold = _to_float(crcl_rule.get("threshold"))
+        if patient_crcl is not None and threshold is not None and patient_crcl < threshold:
+            base_message = str(crcl_rule.get("message", "Reduced renal clearance caution."))
+            add_finding(
+                category="renal",
+                severity=str(crcl_rule.get("severity", "high")),
+                message=f"{med_name} caution with CrCl {patient_crcl:.1f} mL/min: {base_message}",
+                matched=f"creatinine_clearance_ml_min<{threshold}",
+            )
+
+    albumin_rule = rule.get("albumin_below_g_dl")
+    if isinstance(albumin_rule, dict):
+        patient_albumin = _to_float(patient_context.get("albumin_g_dl"))
+        threshold = _to_float(albumin_rule.get("threshold"))
+        if patient_albumin is not None and threshold is not None and patient_albumin < threshold:
+            base_message = str(albumin_rule.get("message", "Low albumin caution."))
+            add_finding(
+                category="protein_binding",
+                severity=str(albumin_rule.get("severity", "moderate")),
+                message=f"{med_name} caution with albumin {patient_albumin:.2f} g/dL: {base_message}",
+                matched=f"albumin_g_dl<{threshold}",
             )
 
     current_meds = [str(m) for m in (patient_context.get("current_medications") or [])]

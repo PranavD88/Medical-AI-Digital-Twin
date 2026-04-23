@@ -720,7 +720,7 @@ export default function Simulation() {
           >
             <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Therapeutic Window Review</div>
             <div style={{ marginBottom: "0.25rem" }}>
-              Queue pending manual entry: <strong>{queueCount}</strong>
+              Queue needing review: <strong>{queueCount}</strong>
             </div>
             {reviewLoading && <div>Loading review...</div>}
             {!reviewLoading && windowReview && (
@@ -795,7 +795,7 @@ export default function Simulation() {
                         {reviewBusy ? "Saving..." : "Submit Reject"}
                       </button>
                       <span style={{ marginLeft: "0.5rem", color: "#7f1d1d" }}>
-                        If you reject without manual values, this stays in manual_required queue.
+                        Reject without manual values to mark the proposal rejected and keep it in review queue.
                       </span>
                     </div>
                   </div>
