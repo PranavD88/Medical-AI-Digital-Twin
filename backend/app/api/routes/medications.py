@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
@@ -66,6 +67,19 @@ def _normalize_medication_payload(data: dict) -> dict:
         if k in out and out[k] is not None:
             out[k] = _float_to_dec(float(out[k]))
     return out
+
+
+def _medication_writes_locked() -> bool:
+    raw = os.getenv("DEMO_LOCK_MEDICATION_WRITES", "")
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _assert_medication_writes_allowed() -> None:
+    if _medication_writes_locked():
+        raise HTTPException(
+            status_code=403,
+            detail="Medication changes are disabled in demo mode",
+        )
 
 
 class WindowReviewResponse(BaseModel):
@@ -215,6 +229,7 @@ def get_medication_by_name(name: str, session: Session = Depends(get_session)):
 
 @router.post("/")
 def create_medication(body: MedicationCreate, session: Session = Depends(get_session)):
+    _assert_medication_writes_allowed()
     _validate_window_inputs(
         body.therapeutic_window_lower_mg_l,
         body.therapeutic_window_upper_mg_l,
@@ -241,6 +256,7 @@ def create_medication(body: MedicationCreate, session: Session = Depends(get_ses
 
 @router.post("/{name}")
 def update_medication(name: str, body: MedicationUpdate, session: Session = Depends(get_session)):
+    _assert_medication_writes_allowed()
     med = _get_medication_by_name_or_404(name, session)
     _validate_window_inputs(
         body.therapeutic_window_lower_mg_l,
@@ -265,6 +281,7 @@ def update_medication(name: str, body: MedicationUpdate, session: Session = Depe
 
 @router.delete("/{name}")
 def delete_medication(name: str, session: Session = Depends(get_session)):
+    _assert_medication_writes_allowed()
     med = _get_medication_by_name_or_404(name, session)
 
     removed_simulations = session.exec(
@@ -294,6 +311,32 @@ def delete_medication(name: str, session: Session = Depends(get_session)):
 def get_window_review(medication_id: str, session: Session = Depends(get_session)):
     med = _get_medication_by_id_or_404(medication_id, session)
     row = _get_window_review_by_med_id(str(med.id), session)
+    if _medication_writes_locked():
+        if row is not None:
+            return _to_review_response(row)
+        low, high = _window_from_medication(med)
+        if low is not None and high is not None and high > low >= 0:
+            return WindowReviewResponse(
+                medication_id=str(med.id),
+                status="proposed",
+                lower_mg_l=low,
+                upper_mg_l=high,
+                source="medication-db",
+                confidence_pct=100.0,
+                reviewer_notes=None,
+                updated_at=None,
+            )
+        return WindowReviewResponse(
+            medication_id=str(med.id),
+            status="manual_required",
+            lower_mg_l=None,
+            upper_mg_l=None,
+            source="none",
+            confidence_pct=0.0,
+            reviewer_notes=None,
+            updated_at=None,
+        )
+
     if row is None:
         row = _sync_review_from_medication_window(
             session=session,
@@ -324,6 +367,7 @@ def get_window_review(medication_id: str, session: Session = Depends(get_session
 
 @router.post("/{medication_id}/window-review/approve", response_model=WindowReviewResponse)
 def approve_window_review(medication_id: str, session: Session = Depends(get_session)):
+    _assert_medication_writes_allowed()
     med = _get_medication_by_id_or_404(medication_id, session)
     row = _get_window_review_by_med_id(str(med.id), session)
     if row is None:
@@ -358,6 +402,7 @@ def reject_window_review(
     body: WindowRejectRequest,
     session: Session = Depends(get_session),
 ):
+    _assert_medication_writes_allowed()
     med = _get_medication_by_id_or_404(medication_id, session)
     row = _get_window_review_by_med_id(str(med.id), session)
     if row is None:

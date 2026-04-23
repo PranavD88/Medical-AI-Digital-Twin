@@ -111,6 +111,11 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+const DEMO_WRITE_LOCK_VALUES = new Set(["1", "true", "yes", "on"]);
+const medicationWritesLocked = DEMO_WRITE_LOCK_VALUES.has(
+  String(import.meta.env.VITE_DEMO_LOCK_MEDICATION_WRITES ?? "").trim().toLowerCase()
+);
+
 export default function Simulation() {
   const location = useLocation();
   const { patientId: initialPatientId, medicationId: initialMedId } =
@@ -136,7 +141,7 @@ export default function Simulation() {
   const result = results.length > 0 ? results[results.length - 1] : null;
   const [pkFetchResult, setPkFetchResult] = useState<PkFetchResponse | null>(null);
   const [fetchMedName, setFetchMedName] = useState("");
-  const [fetchUpsert, setFetchUpsert] = useState(true);
+  const [fetchUpsert, setFetchUpsert] = useState(!medicationWritesLocked);
   const [windowReview, setWindowReview] = useState<WindowReview | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -614,11 +619,13 @@ export default function Simulation() {
                 alignItems: "center",
                 gap: "0.4rem",
                 fontSize: "0.85rem",
+                opacity: medicationWritesLocked ? 0.7 : 1,
               }}
             >
               <input
                 type="checkbox"
                 checked={fetchUpsert}
+                disabled={medicationWritesLocked}
                 onChange={(e) => setFetchUpsert(e.target.checked)}
               />
               Upsert into DB
@@ -645,6 +652,7 @@ export default function Simulation() {
             <button
               type="button"
               onClick={() => setShowNewMed((v) => !v)}
+              disabled={medicationWritesLocked}
               style={{
                 padding: "0.3rem 0.8rem",
                 borderRadius: "999px",
@@ -661,7 +669,7 @@ export default function Simulation() {
             <button
               type="button"
               onClick={() => setShowEditMed((v) => !v)}
-              disabled={!selectedMedId}
+              disabled={!selectedMedId || medicationWritesLocked}
               style={{
                 padding: "0.3rem 0.8rem",
                 borderRadius: "999px",
@@ -676,6 +684,11 @@ export default function Simulation() {
               {showEditMed ? "Close edit" : "Edit selected"}
             </button>
           </div>
+          {medicationWritesLocked && (
+            <div style={{ fontSize: "0.8rem", color: "#7f1d1d" }}>
+              Demo mode: medication writes are locked. You can still fetch/read and run simulations.
+            </div>
+          )}
 
           {pkFetchResult && (
             <div
@@ -735,7 +748,7 @@ export default function Simulation() {
                   <button
                     type="button"
                     onClick={handleApproveWindow}
-                    disabled={reviewBusy}
+                    disabled={reviewBusy || medicationWritesLocked}
                     style={{
                       padding: "0.3rem 0.8rem",
                       borderRadius: "999px",
@@ -751,7 +764,7 @@ export default function Simulation() {
                   <button
                     type="button"
                     onClick={() => setShowRejectForm((v) => !v)}
-                    disabled={reviewBusy}
+                    disabled={reviewBusy || medicationWritesLocked}
                     style={{
                       padding: "0.3rem 0.8rem",
                       borderRadius: "999px",
@@ -781,7 +794,7 @@ export default function Simulation() {
                       <button
                         type="button"
                         onClick={handleRejectWindow}
-                        disabled={reviewBusy}
+                        disabled={reviewBusy || medicationWritesLocked}
                         style={{
                           padding: "0.3rem 0.8rem",
                           borderRadius: "999px",
@@ -877,7 +890,7 @@ export default function Simulation() {
                 <button
                   type="button"
                   onClick={handleCreateMedication}
-                  disabled={savingMed}
+                  disabled={savingMed || medicationWritesLocked}
                   style={{
                     padding: "0.4rem 0.9rem",
                     borderRadius: "999px",
@@ -966,7 +979,7 @@ export default function Simulation() {
                 <button
                   type="button"
                   onClick={handleUpdateMedication}
-                  disabled={updatingMed || deletingMed}
+                  disabled={updatingMed || deletingMed || medicationWritesLocked}
                   style={{
                     padding: "0.4rem 0.9rem",
                     borderRadius: "999px",
@@ -982,7 +995,7 @@ export default function Simulation() {
                 <button
                   type="button"
                   onClick={handleDeleteMedication}
-                  disabled={updatingMed || deletingMed}
+                  disabled={updatingMed || deletingMed || medicationWritesLocked}
                   style={{
                     padding: "0.4rem 0.9rem",
                     borderRadius: "999px",

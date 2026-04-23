@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from typing import Optional, List, Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +22,11 @@ from ...pharmacokinetics import (
 )
 
 router = APIRouter(prefix="/pk", tags=["Pharmacokinetics"])
+
+
+def _medication_writes_locked() -> bool:
+    raw = os.getenv("DEMO_LOCK_MEDICATION_WRITES", "")
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 class SimulateRequest(BaseModel):
     drug_name: Optional[str] = Field(
@@ -121,6 +127,11 @@ def fetch_and_upsert(
     ),
     db: Session = Depends(get_session),
 ):
+    requested_upsert = bool(upsert)
+    writes_locked = _medication_writes_locked()
+    if upsert and writes_locked:
+        upsert = False
+
     pk = fetch_drug_pharmacokinetics(name)
     med: Medication | None = None
 
@@ -178,8 +189,17 @@ def fetch_and_upsert(
     )
 
     if include_raw:
-        return pk
-    return _summarize_source_payload(pk)
+        out: dict[str, Any] = pk
+    else:
+        out = _summarize_source_payload(pk)
+
+    if writes_locked:
+        out["medication_write_locked"] = True
+    if requested_upsert and writes_locked:
+        out["upsert_applied"] = False
+        out["upsert_reason"] = "Medication changes are disabled in demo mode"
+
+    return out
 
 
 def _summarize_source_payload(pk: dict[str, Any]) -> dict[str, Any]:
